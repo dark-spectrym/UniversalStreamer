@@ -23,9 +23,10 @@ private const val PREF_OLD_ENOUGH = "oldenough"
 @Composable
 fun AppNav(graph: Graph, onExit: () -> Unit) {
     val navController = rememberNavController()
-    val start = if (graph.prefs.getBoolean(PREF_OLD_ENOUGH, false)) "sites" else "gate"
-
-    NavHost(navController = navController, startDestination = start) {
+    // Always open on the dependency-free entry screen so the app is guaranteed to
+    // show an operable first frame (important on Android TV, where landing straight
+    // on a network-loading screen with nothing focusable looks like a frozen app).
+    NavHost(navController = navController, startDestination = "gate") {
         composable("gate") {
             AgeGateScreen(
                 onConfirm = {
