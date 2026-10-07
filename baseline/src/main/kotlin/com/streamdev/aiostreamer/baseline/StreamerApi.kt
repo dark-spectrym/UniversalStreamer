@@ -40,7 +40,7 @@ object StreamerApi {
     private fun baseClient(enableLogging: Boolean): OkHttpClient.Builder {
         val timeout = BaselineConfig.TIMEOUT_SECONDS
         val builder = OkHttpClient.Builder()
-            .connectTimeout(timeout, TimeUnit.SECONDS)
+            .connectTimeout(BaselineConfig.CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(timeout, TimeUnit.SECONDS)
             .writeTimeout(timeout, TimeUnit.SECONDS)
         if (enableLogging) {

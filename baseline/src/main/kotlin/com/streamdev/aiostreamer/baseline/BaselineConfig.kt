@@ -25,8 +25,12 @@ object BaselineConfig {
     /** Client version code sent in the integrity hash and version endpoints. */
     const val VERSION_CODE: Int = 6719
 
-    /** Connect/read/write timeout applied to the backend client (seconds). */
+    /** Read/write timeout applied to the backend client (seconds). */
     const val TIMEOUT_SECONDS: Long = 90L
+
+    /** Connect timeout — kept short so an unreachable backend fails fast with a
+     *  visible error instead of a long silent spinner. */
+    const val CONNECT_TIMEOUT_SECONDS: Long = 20L
 
     /** Longer timeout used for stream-resolution and direct site scraping (seconds). */
     const val SCRAPE_TIMEOUT_SECONDS: Long = 60L
