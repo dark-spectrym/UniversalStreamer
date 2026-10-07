@@ -1,12 +1,18 @@
 name: Alpha Release
 
-# Build and publish the alpha APK as a GitHub Release asset when a version tag is
-# pushed (e.g. v6.7.1-alpha01). The APK is produced on the runner and attached to
-# the release server-side, so it is a direct one-click .apk download.
+# Build and publish the alpha APK as a GitHub Release asset. Triggers on a v* tag
+# push, or via manual/API dispatch with a `tag` input (the job then creates that
+# tag at the checked-out commit through `gh release create`). The APK is produced
+# and attached server-side, so it is a direct one-click .apk download.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create (e.g. v6.7.1-alpha01)"
+        required: true
+        default: "v6.7.1-alpha01"
 
 permissions:
   contents: write
@@ -17,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve release tag
+        run: echo "TAG=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_ENV"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -53,16 +61,17 @@ jobs:
       - name: Stage APK with a friendly name
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/release/*.apk "dist/AIO-Streamer-${GITHUB_REF_NAME}.apk"
+          cp app/build/outputs/apk/release/*.apk "dist/AIO-Streamer-${TAG}.apk"
           ls -la dist
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            "dist/AIO-Streamer-${GITHUB_REF_NAME}.apk" \
+          gh release create "${TAG}" \
+            "dist/AIO-Streamer-${TAG}.apk" \
             --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
             --prerelease \
-            --title "AIO Streamer ${GITHUB_REF_NAME}" \
+            --title "AIO Streamer ${TAG}" \
             --notes "Automated alpha build (universal APK: minSdk 24 → target 35, all ABIs/densities, phone + TV). Connects to the v9 backend as the trusted client via the pinned signing digest. Sideload: enable 'Install unknown apps' and open the .apk."
