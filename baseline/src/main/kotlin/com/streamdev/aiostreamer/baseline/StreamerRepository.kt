@@ -43,6 +43,17 @@ class StreamerRepository(
 
     fun logout() = credentials.clear()
 
+    /** Entry handshake: register this device (`v9/device`). */
+    suspend fun registerDevice(androidId: String): Result<SimpleResult> =
+        runCatching { api.registerDevice(androidId) }
+
+    /** Entry handshake: server check / info (`v9/checkInfo`). */
+    suspend fun checkInfo(): Result<Map<String, Any?>> = runCatching { api.checkInfo() }
+
+    /** Clock sync used on entry (`v9/unixTime`). */
+    suspend fun syncTime(deviceUnixSeconds: Long, versionCode: Int = BaselineConfig.VERSION_CODE):
+        Result<SimpleResult> = runCatching { api.getUnixTime(deviceUnixSeconds, versionCode) }
+
     // --- Catalogue ---
 
     suspend fun sites(): Result<Map<String, List<SiteInfo>>> = runCatching { api.getSites() }

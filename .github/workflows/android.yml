@@ -49,6 +49,11 @@ jobs:
           java-version: "17"
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Avoid the obsolete legacy "tools" package (removed from the SDK repo;
+          # setup-android@v3 tries it by default and fails). Install exactly what
+          # AGP 8.7 / compileSdk 35 need so no license prompt blocks assembly.
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
 
       # Optional release signing: provide these repo secrets to produce a

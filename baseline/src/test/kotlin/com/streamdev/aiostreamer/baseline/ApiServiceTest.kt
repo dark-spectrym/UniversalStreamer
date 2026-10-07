@@ -99,6 +99,22 @@ class ApiServiceTest {
     }
 
     @Test
+    fun entryHandshake_deviceAndCheckInfo() = runBlocking {
+        val repo = StreamerRepository(api, credentials)
+        server.enqueue(MockResponse().setBody("""{"result":"ok","statusCode":200}"""))
+        server.enqueue(MockResponse().setBody("""{"maintenance":false}"""))
+
+        assertEquals(200, repo.registerDevice("android-xyz").getOrThrow().statusCode)
+        val device = server.takeRequest()
+        assertEquals("/api/v9/device", device.path)
+        assertTrue(device.body.readUtf8().contains("android_id=android-xyz"))
+
+        val info = repo.checkInfo().getOrThrow()
+        assertEquals(false, info["maintenance"])
+        assertEquals("/api/v9/checkInfo", server.takeRequest().path)
+    }
+
+    @Test
     fun coinsCheck_parsesConversionResponse() = runBlocking {
         server.enqueue(MockResponse().setBody("""{"pro":0,"coins":5,"needed":10}"""))
 
