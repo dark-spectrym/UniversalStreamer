@@ -1,77 +1,41 @@
 package com.streamdev.aiostreamer.ui
 
 import android.os.Bundle
-import android.view.Gravity
-import android.widget.ScrollView
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
-import androidx.lifecycle.lifecycleScope
-import com.streamdev.aiostreamer.BuildConfig
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import com.streamdev.aiostreamer.app.StreamerApp
-import kotlinx.coroutines.launch
+import com.streamdev.aiostreamer.ui.sites.SitesScreen
+import com.streamdev.aiostreamer.ui.sites.SitesViewModel
+import com.streamdev.aiostreamer.ui.theme.StreamerTheme
 
 /**
- * Shell launcher activity for the revived baseline.
- *
- * It renders the app/version banner and exercises the reconstructed API baseline
- * by calling `v9/sites` through the repository, proving the full networking path
- * (hash signing → auth interceptor → Retrofit → Gson) is wired correctly. The
- * original feature surface (navigation drawer, per-site grids, player, TV UI,
- * downloads, lock screen) is documented in docs/FEATURES.md and is ported onto
- * this baseline incrementally.
+ * Compose entry point. Hosts the site catalogue, which exercises the full v9
+ * networking path (hash signing → auth interceptor → Retrofit → Gson) through the
+ * baseline repository. Per-site listing, player, and the other screens from the
+ * v6.7.1 inventory (docs/FEATURES.md) are built on this shell.
  */
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
+
+    private val sitesViewModel: SitesViewModel by viewModels {
+        SitesViewModel.Factory((application as StreamerApp).graph.repository)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-
-        // Edge-to-edge is enforced when targeting Android 15 (API 35); draw behind
-        // the system bars and inset content so it is not clipped on any device.
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-
-        val output = TextView(this).apply {
-            textSize = 16f
-            setPadding(48, 64, 48, 64)
-            gravity = Gravity.START
-            text = "AIO Streamer ${BuildConfig.VERSION_NAME}\nRevived baseline\n\nContacting backend…"
-        }
-        val root = ScrollView(this).apply { addView(output) }
-        setContentView(root)
-
-        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
-            val bars = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
-            )
-            view.updatePadding(left = bars.left, top = bars.top, right = bars.right, bottom = bars.bottom)
-            insets
-        }
-
-        val repository = (application as StreamerApp).graph.repository
-        lifecycleScope.launch {
-            repository.sites()
-                .onSuccess { sites ->
-                    val total = sites.values.sumOf { it.size }
-                    val groups = sites.entries.joinToString("\n") { "  ${it.key}: ${it.value.size}" }
-                    output.text = buildString {
-                        appendLine("AIO Streamer ${BuildConfig.VERSION_NAME}")
-                        appendLine("Revived baseline")
-                        appendLine()
-                        appendLine("Backend OK — $total sites in ${sites.size} groups:")
-                        appendLine(groups)
-                    }
-                }
-                .onFailure { err ->
-                    output.text = buildString {
-                        appendLine("AIO Streamer ${BuildConfig.VERSION_NAME}")
-                        appendLine("Revived baseline")
-                        appendLine()
-                        appendLine("Backend unreachable: ${err.message}")
-                    }
-                }
+        setContent {
+            StreamerTheme {
+                SitesScreen(
+                    viewModel = sitesViewModel,
+                    onSiteSelected = { site ->
+                        // Listing screen wiring lands in the next UI slice; confirm selection for now.
+                        Toast.makeText(this, site.name ?: site.sitetag, Toast.LENGTH_SHORT).show()
+                    },
+                )
+            }
         }
     }
 }

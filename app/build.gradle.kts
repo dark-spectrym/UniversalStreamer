@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     // Firebase (Crashlytics/Analytics) is wired in the original app. To re-enable:
     //   1. drop a real google-services.json into app/
     //   2. uncomment the two plugins below and the firebase deps further down
@@ -30,7 +31,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 6719
-        versionName = "6.7.1"
+        versionName = "6.7.1-alpha01"
         vectorDrawables.useSupportLibrary = true
         // Keep every resource configuration in the single universal APK (do not
         // strip locales/densities) so one file installs correctly on any device.
@@ -80,7 +81,7 @@ android {
     }
 
     buildFeatures {
-        viewBinding = true
+        compose = true
         buildConfig = true
     }
 
@@ -110,21 +111,31 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.coroutines.play.services)
 
-    // AndroidX core UI
+    // AndroidX core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.google.material)
-    implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
-    implementation(libs.androidx.recyclerview)
-    implementation(libs.androidx.swiperefreshlayout)
-    implementation(libs.androidx.viewpager2)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.preference.ktx)
-    implementation(libs.androidx.navigation.fragment.ktx)
-    implementation(libs.androidx.navigation.ui.ktx)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.documentfile)
+
+    // Jetpack Compose (Material3)
+    implementation(platform(libs.compose.bom))
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.graphics)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.extended)
+    implementation(libs.androidx.navigation.compose)
+    debugImplementation(libs.compose.ui.tooling)
+
+    // Image loading
+    implementation(libs.coil.compose)
 
     // Secure lock (PIN / biometric)
     implementation(libs.androidx.biometric)
@@ -144,9 +155,6 @@ dependencies {
     implementation(libs.exoplayer.dash)
     implementation(libs.exoplayer.cast)
     implementation(libs.play.services.cast.framework)
-
-    // Image loading
-    implementation(libs.glide)
 
     // Ads
     implementation(libs.play.services.ads)
