@@ -1,10 +1,11 @@
 # UniversalStreamer (AIO Streamer, revived)
 
-Revival of the `com.streamdev.aiostreamer` Android app (shipped as AIO Streamer
-v6.4.5, build 645) after the original source was lost. The codebase was recovered
-by decompiling the shipped APK and is being rebuilt as a clean, modern,
-multi-module Gradle project centred on a well-defined API baseline for all
-connections to the backend and to external sites.
+Revival of the `com.streamdev.aiostreamer` Android app (AIO Streamer) after the
+original source was lost. Recovered by decompiling the shipped APKs — first
+v6.4.5 (build 645), then the clean v6.7.1 (build 6719) — and rebuilt as a clean,
+modern, multi-module Gradle project centred on a well-defined API baseline for all
+connections to the backend and to external sites. The baseline tracks the current
+**v9** backend.
 
 ## Status
 - ✅ **API baseline** — reconstructed, modernised (coroutines), compiles and unit-tested (`:baseline`, 7 tests green).
@@ -19,9 +20,11 @@ connections to the backend and to external sites.
 ## Universal / modern Android
 Built as one sideloadable universal APK that targets the current platform while
 keeping the widest device reach:
-- **minSdk 21 → targetSdk/compileSdk 35** (Android 5.0 through Android 15).
-- **No native libraries** (pure Dalvik), so the single APK is ABI-universal; ABI
-  and density splits are disabled explicitly.
+- **minSdk 24 → targetSdk/compileSdk 35** (Android 7.0 through Android 15; minSdk
+  matches the clean v6.7.1 build, upstream targeted a 37-preview).
+- Native libs come only from standard deps (Conscrypt/datastore/graphics) and are
+  auto-bundled for all 4 ABIs; ABI and density splits are disabled so one universal
+  APK installs everywhere.
 - **All screen classes** (phone, tablet, foldable, Chromebook) plus **Android TV**
   (leanback is optional, touchscreen not required), with `resizeableActivity`.
 - **Edge-to-edge** window-inset handling for Android 15's enforced layout.

@@ -1,23 +1,34 @@
-# Feature inventory (deconstructed from v6.4.5, build 645)
+# Feature inventory
 
-This is the complete catalogue of features recovered by decompiling the shipped
-`AIO_Streamer_v6.4.5` APK (package `com.streamdev.aiostreamer`, 197 app classes,
-~46k LOC across 9 dex files). It is the contract for the rewrite: every item here
-must survive the port. Status reflects what the revived codebase implements today.
+Catalogue of features recovered by decompiling the shipped APKs. First mapped from
+`AIO_Streamer_v6.4.5` (build 645, 197 classes), then updated against the clean
+`AIO_Streamer_v6.7.1` (build 6719, 106 classes, refactored into `mobile/`, `tv/`,
+`players/`). It is the contract for the rewrite: every item here must survive the
+port. Status reflects what the revived codebase implements today.
 
 Legend: ✅ reconstructed · 🟡 scaffolded/wired to baseline · ⬜ documented, not yet ported
+
+## 0. v6.7.1 deltas (current clean build)
+- **Backend v7 → v9**, RESTful redesign (`v9/sites/{sitetag}/{data|info|link|stream|related|tags|extra}`); `tokens`→`coins/*`.
+- **New RSA key + hash scheme**: request `hash` now RSA-encrypts a JSON `HashInformation` (SHA-256 cert digests, login snapshot, android id, pkg, time, version). ✅ ported.
+- **New external APIs**: NSFW swipe (`nsfwswipe.com`) and RedGifs (`api.redgifs.com`). ✅ typed services added.
+- **New endpoints/features**: `porndb` (metadata search), `tv/send` (second-screen cast), `video/{id}/info`. ✅ endpoints; UI ⬜.
+- **Native libs** added by deps (Conscrypt TLS, datastore, graphics-path) across 4 ABIs — auto-bundled, APK stays universal.
+- **Jetpack Compose for TV** (`tv/tvcompose`), reorganized `players/` (StandardVideoPlayer, PopupVideoPlayer). ⬜ port.
+- **SDK**: minSdk 24, target/compile 37-preview upstream (revival pins stable 35).
 
 ## 1. Backend / networking
 | Feature | Original source | Status |
 |---|---|---|
-| REST client to `porn-app.com/api/v7` (30 endpoints) | `api/ApiService`, `api/RetrofitClient` | ✅ `baseline/ApiService.kt`, `StreamerApi.kt` |
-| Per-request integrity `hash` header (RSA-encrypted signing-cert digest + pkg + time) | `helper/HelperClass.generateHash` | ✅ `baseline/security/RsaHashSigner` + `core/security/AndroidHashSigner` |
+| REST client to `porn-app.com/api/v9` (RESTful, ~40 endpoints) | obfuscated `dj` interface | ✅ `baseline/ApiService.kt`, `StreamerApi.kt` |
+| NSFW swipe + RedGifs typed services | obfuscated `my4`, `tf6` | ✅ `baseline/SwipeService.kt` |
+| v9 integrity `hash` (RSA-encrypted `HashInformation` JSON, SHA-256 certs + login snapshot) | obfuscated `x93` | ✅ `baseline/security/RsaHashSigner` + `core/security/AndroidHashSigner` |
 | Bearer-token auth, token persistence | scattered `@Header("Authorization")` + `SharedPref` | ✅ `baseline/net/AuthInterceptor`, `PrefsCredentialStore` |
 | SHA3-256 password hashing (password never sent in clear) | `datatypes/login/UserData.generateSHA` | ✅ `baseline/security/PasswordHasher` |
 | Direct site scraping (jsoup) with per-site UA / age-gate / premium cookies | `methods/GetDataRows`, `methods/GetStream` | ✅ baseline `sites/SiteConnectionClient` + `PrefsCookieProvider` |
 | Server-side stream resolution (`getStream`, `getRelatedVideos`) | `methods/GetStream` | 🟡 endpoint wired; per-site extraction ported incrementally |
 | High-level repository (coroutines + `Result`) replacing RxJava observers | n/a (new) | ✅ `baseline/StreamerRepository` |
-| Crash/scrape error reporting (`v7/error`) | `api/ErrorMethods`, `datatypes/GenericError` | ✅ model + endpoint |
+| Crash/scrape error reporting (`v9/error`, `v9/errors`) | `datatypes/errors/ClientError` | ✅ model + endpoint |
 
 ## 2. Accounts, PRO membership & token economy
 | Feature | Original source | Status |
@@ -25,7 +36,9 @@ Legend: ✅ reconstructed · 🟡 scaffolded/wired to baseline · ⬜ documented
 | Login / signup / password reset flow | `helper/LoginHelper` | 🟡 `repository.login` ready; dialogs ⬜ |
 | PRO membership state (expiry unix time) | `datatypes/LoginStatus` | ✅ `LoginStatus.isPro()` (crack patch removed, see §8) |
 | Daily token claim, coin exchange, HWID coins | `standardUI/TokensFragment`, endpoints | 🟡 endpoints wired; UI ⬜ |
-| Device registration (`v7/device`) | endpoint | ✅ endpoint |
+| Device registration (`v9/device`) | endpoint | ✅ endpoint |
+| Second-screen cast to TV (`v9/tv/send`) | `datatypes/VideoToTv` | ✅ endpoint; UI ⬜ |
+| PornDB metadata search (`v9/porndb`) | `filters/PornDBFilter` | ✅ endpoint; UI ⬜ |
 
 ## 3. Content browsing UI
 | Feature | Original source | Status |
@@ -87,5 +100,5 @@ deliberately drops the tamper scaffolding and restores correct behaviour:
   spoofed the signing certificate to defeat the `hash` check. Dropped; the revived
   `StreamerApp` extends plain `Application` and the real signing cert is used.
 
-Site tags, scraping recipes and paysite lists are server-driven (`v7/sites`,
-`v7/getInfo`) rather than hard-coded, so the catalogue updates without an app release.
+Site tags, scraping recipes and paysite lists are server-driven (`v9/sites`,
+`v9/sites/{tag}/info`) rather than hard-coded, so the catalogue updates without an app release.

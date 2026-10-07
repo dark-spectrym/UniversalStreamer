@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
  * Shell launcher activity for the revived baseline.
  *
  * It renders the app/version banner and exercises the reconstructed API baseline
- * by calling `v7/sites` through the repository, proving the full networking path
+ * by calling `v9/sites` through the repository, proving the full networking path
  * (hash signing → auth interceptor → Retrofit → Gson) is wired correctly. The
  * original feature surface (navigation drawer, per-site grids, player, TV UI,
  * downloads, lock screen) is documented in docs/FEATURES.md and is ported onto

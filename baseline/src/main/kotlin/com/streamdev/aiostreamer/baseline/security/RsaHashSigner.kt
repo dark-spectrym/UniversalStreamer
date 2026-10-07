@@ -1,42 +1,34 @@
 package com.streamdev.aiostreamer.baseline.security
 
+import com.google.gson.Gson
 import java.security.KeyFactory
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
 import javax.crypto.Cipher
 
 /**
- * Default [HashSigner]. Reconstructs the `generateHash` algorithm from the
- * original `HelperClass`:
+ * Default [HashSigner] for the v9 API.
  *
+ * Reconstructs the v6.7.1 algorithm:
  * ```
- * payload   = base64( SHA1(signingCertificate) ) + packageName + unixSeconds
- * hash      = base64( RSA/ECB/PKCS1( payload ) )   // encrypted with the server public key
+ * hash = base64( RSA/ECB/PKCS1( gson.toJson(HashInformation) ) )   // server public key
  * ```
+ * with all base64 CR/LF stripped so the value is header-safe.
  *
- * All CR/LF produced by the base64 encoders are stripped so the value is header-safe.
- *
- * The signing-certificate SHA-1 digest and the package name are platform values,
- * supplied by the caller, which keeps this class free of any Android dependency.
- *
- * @param certSha1DigestProvider returns the raw SHA-1 digest of the app's signing certificate
- * @param packageName            the application id (e.g. `com.streamdev.aiostreamer`)
- * @param serverPublicKeyBase64  the backend RSA public key (see [BaselineConfig.SERVER_PUBLIC_KEY])
- * @param clockSeconds           current unix time in seconds; injectable for testing
+ * The [HashInformation] is rebuilt per call by [infoProvider] so time and the
+ * current login state are always fresh. The provider is supplied by the Android
+ * layer (which reads the signing-cert SHA-256 digests, android id and login
+ * state); this class stays free of Android dependencies.
  */
 class RsaHashSigner(
-    private val certSha1DigestProvider: () -> ByteArray,
-    private val packageName: String,
+    private val infoProvider: () -> HashInformation,
     private val serverPublicKeyBase64: String,
-    private val clockSeconds: () -> Long = { System.currentTimeMillis() / 1000L },
+    private val gson: Gson = Gson(),
 ) : HashSigner {
 
     override fun sign(): String {
-        val certDigestB64 = Base64.getEncoder()
-            .encodeToString(certSha1DigestProvider())
-            .stripNewlines()
-        val payload = certDigestB64 + packageName + clockSeconds().toString()
-        return encrypt(payload).stripNewlines()
+        val json = gson.toJson(infoProvider())
+        return encrypt(json).replace("\n", "").replace("\r", "")
     }
 
     private fun encrypt(data: String): String {
@@ -48,5 +40,15 @@ class RsaHashSigner(
         return Base64.getEncoder().encodeToString(cipher.doFinal(data.toByteArray(Charsets.UTF_8)))
     }
 
-    private fun String.stripNewlines(): String = replace("\n", "").replace("\r", "")
+    companion object {
+        /**
+         * SHA-256 digest of a signing certificate, standard base64 (padded, no line
+         * wraps) — equivalent to Android's `Base64.encodeToString(sha, Base64.NO_WRAP)`,
+         * which is the form the v9 backend expects in `HashInformation.signatures`.
+         */
+        fun certDigest(certBytes: ByteArray): String {
+            val sha = java.security.MessageDigest.getInstance("SHA-256").digest(certBytes)
+            return Base64.getEncoder().encodeToString(sha)
+        }
+    }
 }

@@ -1,50 +1,73 @@
 package com.streamdev.aiostreamer.core.security
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
+import android.provider.Settings
 import com.streamdev.aiostreamer.baseline.BaselineConfig
+import com.streamdev.aiostreamer.baseline.model.LoginStatus
+import com.streamdev.aiostreamer.baseline.security.HashInformation
 import com.streamdev.aiostreamer.baseline.security.HashSigner
 import com.streamdev.aiostreamer.baseline.security.RsaHashSigner
-import java.security.MessageDigest
 
 /**
- * Android-backed [HashSigner].
+ * Android-backed [HashSigner] for the v9 API.
  *
- * Supplies the platform-specific input to [RsaHashSigner]: the SHA-1 digest of
- * the app's own signing certificate, read from [PackageManager]. The RSA
- * encryption and payload assembly live in the platform-agnostic baseline.
+ * Builds the [HashInformation] the backend expects, supplying the platform values
+ * the baseline cannot know: the SHA-256 digests of every signing certificate, the
+ * android id, the TV flag, and the current login snapshot. The RSA encryption and
+ * JSON serialisation stay in the baseline ([RsaHashSigner]).
  *
- * Replaces the reflection/`generateHash` logic in the old `HelperClass`, using
- * the modern `GET_SIGNING_CERTIFICATES` API on API 28+ and falling back to the
- * deprecated `GET_SIGNATURES` on older devices (minSdk 21).
+ * Uses `GET_SIGNING_CERTIFICATES` on API 28+ and the deprecated `GET_SIGNATURES`
+ * below that (minSdk 24).
  */
 object AndroidHashSigner {
 
-    fun create(context: Context): HashSigner {
+    fun create(context: Context, loginStatusProvider: () -> LoginStatus): HashSigner {
         val appContext = context.applicationContext
-        val packageName = appContext.packageName
         return RsaHashSigner(
-            certSha1DigestProvider = { sha1OfSigningCert(appContext) },
-            packageName = packageName,
+            infoProvider = { buildInfo(appContext, loginStatusProvider()) },
             serverPublicKeyBase64 = BaselineConfig.SERVER_PUBLIC_KEY,
         )
     }
 
-    private fun sha1OfSigningCert(context: Context): ByteArray {
+    @SuppressLint("HardwareIds")
+    private fun buildInfo(context: Context, login: LoginStatus): HashInformation = HashInformation(
+        id = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "",
+        isTV = isTelevision(context),
+        loginStatus = login,
+        packageName = context.packageName,
+        signatures = signingCertSha256(context),
+        time = System.currentTimeMillis() / 1000L,
+        version = BaselineConfig.VERSION_CODE,
+    )
+
+    private fun signingCertSha256(context: Context): List<String> {
         val pm = context.packageManager
-        val packageName = context.packageName
-        val certBytes: ByteArray = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val pkg = context.packageName
+        val certs: List<ByteArray> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             @Suppress("PackageManagerGetSignatures")
-            val info = pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-            val signers = info.signingInfo?.apkContentsSigners
-            requireNotNull(signers?.firstOrNull()) { "no signing certificate" }.toByteArray()
+            val info = pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
+            (info.signingInfo?.apkContentsSigners ?: emptyArray()).map { it.toByteArray() }
         } else {
             @Suppress("DEPRECATION", "PackageManagerGetSignatures")
-            val info = pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
+            val info = pm.getPackageInfo(pkg, PackageManager.GET_SIGNATURES)
             @Suppress("DEPRECATION")
-            info.signatures!!.first().toByteArray()
+            (info.signatures ?: emptyArray()).map { it.toByteArray() }
         }
-        return MessageDigest.getInstance("SHA").digest(certBytes)
+        return certs.map(RsaHashSigner::certDigest)
+    }
+
+    private fun isTelevision(context: Context): Boolean {
+        val pm = context.packageManager
+        if (pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+            pm.hasSystemFeature(PackageManager.FEATURE_TELEVISION)
+        ) {
+            return true
+        }
+        val uiMode = context.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK
+        return uiMode == Configuration.UI_MODE_TYPE_TELEVISION
     }
 }

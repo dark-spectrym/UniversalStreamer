@@ -24,12 +24,13 @@ android {
 
     defaultConfig {
         applicationId = "com.streamdev.aiostreamer"
-        // minSdk 21 keeps the widest device reach (Android 5.0+); targetSdk 35 is
-        // current (Android 15) so the app meets modern platform behaviour/standards.
-        minSdk = 21
+        // minSdk 24 matches the clean v6.7.1 build (Android 7.0+). targetSdk 35 is the
+        // current *stable* platform (Android 15); the shipped v6.7.1 targeted a 37
+        // preview, which needs a preview SDK + newer AGP, so the revival pins to 35.
+        minSdk = 24
         targetSdk = 35
-        versionCode = 645
-        versionName = "6.4.5"
+        versionCode = 6719
+        versionName = "6.7.1"
         vectorDrawables.useSupportLibrary = true
         // Keep every resource configuration in the single universal APK (do not
         // strip locales/densities) so one file installs correctly on any device.

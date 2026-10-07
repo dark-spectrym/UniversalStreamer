@@ -11,12 +11,11 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * Builds a configured [ApiService]. Replaces the original singleton
- * `RetrofitClient` with an explicit, testable factory:
+ * Builds the typed service clients. Replaces the v6.x singleton `RetrofitClient`
+ * objects (one per backend) with one explicit, testable factory.
  *
- *  - the base URL is injectable (point at staging in tests),
- *  - auth headers are centralised in [AuthInterceptor],
- *  - an optional logging interceptor can be attached.
+ *  - [create] -> main v9 backend with the [AuthInterceptor] attaching `hash` + bearer.
+ *  - [createSwipe] / [createRedgifs] -> the auxiliary feeds, which use no app auth.
  */
 object StreamerApi {
 
@@ -25,32 +24,37 @@ object StreamerApi {
         credentials: CredentialStore = InMemoryCredentialStore(),
         baseUrl: String = BaselineConfig.DEFAULT_BASE_URL,
         enableLogging: Boolean = false,
-    ): ApiService = buildRetrofit(hashSigner, credentials, baseUrl, enableLogging).create(ApiService::class.java)
+    ): ApiService {
+        val client = baseClient(enableLogging)
+            .addInterceptor(AuthInterceptor(hashSigner, credentials))
+            .build()
+        return retrofit(baseUrl, client).create(ApiService::class.java)
+    }
 
-    /** Exposed for callers that also need the underlying [Retrofit] (e.g. to add converters). */
-    fun buildRetrofit(
-        hashSigner: HashSigner,
-        credentials: CredentialStore,
-        baseUrl: String,
-        enableLogging: Boolean,
-    ): Retrofit {
+    fun createSwipe(baseUrl: String = BaselineConfig.SWIPE_BASE_URL, enableLogging: Boolean = false): SwipeService =
+        retrofit(baseUrl, baseClient(enableLogging).build()).create(SwipeService::class.java)
+
+    fun createRedgifs(baseUrl: String = BaselineConfig.REDGIFS_BASE_URL, enableLogging: Boolean = false): RedgifsService =
+        retrofit(baseUrl, baseClient(enableLogging).build()).create(RedgifsService::class.java)
+
+    private fun baseClient(enableLogging: Boolean): OkHttpClient.Builder {
         val timeout = BaselineConfig.TIMEOUT_SECONDS
-        val clientBuilder = OkHttpClient.Builder()
+        val builder = OkHttpClient.Builder()
             .connectTimeout(timeout, TimeUnit.SECONDS)
             .readTimeout(timeout, TimeUnit.SECONDS)
             .writeTimeout(timeout, TimeUnit.SECONDS)
-            .addInterceptor(AuthInterceptor(hashSigner, credentials))
-
         if (enableLogging) {
-            clientBuilder.addInterceptor(
+            builder.addInterceptor(
                 HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC },
             )
         }
+        return builder
+    }
 
-        return Retrofit.Builder()
+    private fun retrofit(baseUrl: String, client: OkHttpClient): Retrofit =
+        Retrofit.Builder()
             .baseUrl(baseUrl)
-            .client(clientBuilder.build())
+            .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-    }
 }

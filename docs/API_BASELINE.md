@@ -1,63 +1,73 @@
-# API baseline — external connections
+# API baseline — external connections (v9)
 
-Single reference for every connection the app makes outside its own process. The
-code lives in the platform-agnostic `:baseline` module so it compiles and is unit
-tested without an Android SDK.
+Single reference for every connection the app makes outside its own process.
+Reconstructed from the clean v6.7.1 build (versionCode 6719). The code lives in
+the platform-agnostic `:baseline` module so it compiles and is unit tested
+without an Android SDK.
 
 ## 1. Connection surfaces
 
 | # | Surface | Transport | Where |
 |---|---|---|---|
-| 1 | Backend REST API (`porn-app.com/api/v7`) | Retrofit + OkHttp + Gson | `ApiService`, `StreamerApi` |
-| 2 | Direct site scraping | jsoup over HTTP(S) | `sites/SiteConnectionClient` |
-| 3 | Media streaming (playback) | ExoPlayer2 + headers from `v7/videoheaders` | app module (port) |
-| 4 | Chromecast | GMS Cast framework | app module (port) |
-| 5 | Firebase Analytics / Crashlytics | Firebase SDK | optional, app module |
-| 6 | AdMob | play-services-ads | optional, app module |
+| 1 | Main backend (`porn-app.com/api/v9`) | Retrofit + OkHttp + Gson | `ApiService`, `StreamerApi` |
+| 2 | NSFW swipe feed (`nsfwswipe.com/api/`) | Retrofit | `SwipeService` |
+| 3 | RedGifs (`api.redgifs.com/v2/`) | Retrofit | `RedgifsService` |
+| 4 | Direct site scraping | jsoup over HTTP(S) | `sites/SiteConnectionClient` |
+| 5 | Media streaming (playback) | ExoPlayer2 + headers from `v9/videoheaders` | app module (port) |
+| 6 | Chromecast / `v9/tv/send` | GMS Cast + REST | app module (port) |
+| 7 | Firebase / AdMob | SDKs | optional, app module |
 
-## 2. Backend base config
+## 2. Main backend config
 - Base URL: `https://porn-app.com/api/` (`BaselineConfig.DEFAULT_BASE_URL`, injectable)
-- Version prefix: `v7`
-- Timeouts: 90 s backend, 60 s scrape (`BaselineConfig`)
-- Converter: Gson · Async: Kotlin coroutines (`suspend`)
+- Version prefix: `v9` · Client versionCode: 6719
+- Timeouts: 90 s · Converter: Gson · Async: coroutines (`suspend`)
 
 ## 3. Authentication model
-Two headers, attached automatically by `AuthInterceptor` (no longer per-method):
+Two headers, attached automatically by `AuthInterceptor` (not per-method):
 
-- `hash` — **every** request. `base64( RSA/ECB/PKCS1( base64(SHA1(signingCert)) + packageName + unixSeconds ) )` using the server public key in `BaselineConfig.SERVER_PUBLIC_KEY`. Recomputed per request. The backend uses it to confirm a genuine, correctly-signed client.
-- `Authorization: Bearer <accessToken>` — authenticated requests only. Endpoints that must not carry it are tagged `@Headers("X-No-Auth: 1")`; the interceptor strips that marker before sending.
+- `hash` — **every** request. v9 changed the scheme: it is
+  `base64( RSA/ECB/PKCS1( gson.toJson(HashInformation) ) )` with the **new v6.7.1
+  server public key** (`BaselineConfig.SERVER_PUBLIC_KEY`). `HashInformation`
+  carries `{ id (android_id), isTV, loginStatus, packageName, signatures[], time,
+  version }`, where `signatures` are **SHA-256** cert digests, base64. (v7 used a
+  SHA-1 string `base64(SHA1(cert))+pkg+time` — fully replaced.)
+- `Authorization: Bearer <accessToken>` — authenticated requests only. No-bearer
+  endpoints are tagged `@Headers("X-No-Auth: 1")`; the interceptor strips the marker.
 
-Login (`POST v7/login`) sends `UserData { username, password = SHA3-256 hex, android_id }`; the returned `token` is persisted via `CredentialStore`.
+Login (`POST v9/login`) sends `UserData { username, password = SHA3-256 hex, android_id }`.
+The returned snapshot (token + pro/unixtime/status/user_id) is persisted and fed
+back into every subsequent request hash.
 
-## 4. Endpoint map (all 30)
+## 4. v9 endpoint map (RESTful redesign)
 Session: `login`, `device`, `unixTime`*, `checkInfo`* ·
-Economy: `tokens` (GET/POST), `coins`, `exchange` ·
-Catalogue: `sites`*, `categories`*, `starter`*, `getInfo`* ·
-Content: `getData`, `getLink`, `videoheaders`* ·
-Favorites: `favorites` (GET/POST/DELETE), `favorites/check`, `favorites/check/id`, `favorites/sites` ·
-Playlists: `playlists` (GET/POST), `playlists/favorites`, `playlists/{id}` (PUT/DELETE), `playlists/{id}/favorites` (DELETE) ·
+Catalogue: `sites`*, `categories`*, `starter`*, `sites/{tag}/info`* ·
+Content: `sites/{tag}/data`, `/related`, `/link`, `/stream`, `/tags`, `/extra`,
+`videoheaders`*, `video/{id}/info` (GET + POST*), `porndb` ·
+Favorites: `favorites` (GET/POST/DELETE), `favorites/{video_id}`, `favorites/sites` ·
+Playlists: `playlists` (GET/POST), `playlists/favorites`,
+`playlists/{id}` (PUT/PATCH/DELETE), `playlists/{id}/favorites` (DELETE) ·
 History: `history` (GET/POST/DELETE), `history/sites` ·
-Diagnostics: `error`*
+Coins: `coins/check`, `coins/exchange`, `coins/id` ·
+Cast/diag: `tv/send`, `error`, `errors` ·
+Utility (no version, no bearer): `update`, `addDownloadCount`, streaming `@Url` download.
 (`*` = no bearer token.)
 
-Full signatures: `baseline/src/main/kotlin/com/streamdev/aiostreamer/baseline/ApiService.kt`.
+Changes vs v7: flat verbs (`getData`, `getInfo`, `getLink`, `getStream`, `getRelatedVideos`)
+became `sites/{sitetag}/{data|info|link|stream|related|tags|extra}`; `tokens` became
+`coins/*`; `porndb` and `tv/send` are new. Full signatures: `baseline/.../ApiService.kt`.
 
-## 5. Direct site scraping
-`SiteConnectionClient` centralises outbound site requests that the original app
-open-coded with jsoup in many places:
-- user agents from `BaselineConfig` (mobile Safari / desktop Chrome),
-- optional age-gate cookies (`accessAgeDisclaimerPH`, `cookiesBannerSeen`, `hasVisited`),
-- per-site stored cookies via `CookieProvider` (Android: `PrefsCookieProvider`, keyed `<siteTag>Cookie(s)`),
-- configurable referrer, timeout, redirect policy.
+## 5. Auxiliary services
+- `SwipeService` (`nsfwswipe.com/api/`): `getCategories`, `getVideos/{id}/{orientation}`,
+  `like/{id}`, `increase/{id}`. No app auth.
+- `RedgifsService` (`api.redgifs.com/v2/`): `auth/temporary` then an `@Url` gif fetch
+  with the temporary bearer. No app auth.
 
-Returns the raw body or a parsed jsoup `Document`.
-
-## 6. Extending
-- New backend endpoint → add to `ApiService`, expose via `StreamerRepository`, add a MockWebServer test.
-- Point at staging → pass `baseUrl` to `StreamerApi.create`.
-- New site connection → call `SiteConnectionClient.fetch*` with a `SiteRequest`; never open-code jsoup in UI.
+## 6. Direct site scraping
+`SiteConnectionClient` centralises outbound site requests (UA, age-gate cookies,
+per-site stored cookies via `CookieProvider`, referrer/timeout/redirects). Returns
+raw body or a parsed jsoup `Document`.
 
 ## 7. Secrets
-No secrets are committed. `SERVER_PUBLIC_KEY` is a public key. The signing-cert
-digest is computed at runtime from the app's own signature. Firebase/AdMob keys
-live only in a local `google-services.json` (gitignored; see the template).
+No secrets committed. `SERVER_PUBLIC_KEY` is a public key (verified: 550-byte DER
+SPKI). The signing-cert digest is computed at runtime from the app's own signature.
+Firebase/AdMob keys live only in a local, gitignored `google-services.json`.
