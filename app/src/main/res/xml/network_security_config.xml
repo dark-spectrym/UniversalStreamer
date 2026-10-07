@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The original build pinned a handful of extra CA roots (Let's Encrypt ISRG X1/X2,
+  GlobalSign, and site-specific intermediates) alongside the system store, because
+  some scraped sites served chains the stock trust store did not yet have.
+
+  Modern Android (7+) trusts those roots out of the box, so the revival trusts the
+  system store and permits cleartext (the backend and several sites still use plain
+  HTTP for media segments). Re-add <certificates src="@raw/..."/> entries here if a
+  specific site presents an untrusted chain.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

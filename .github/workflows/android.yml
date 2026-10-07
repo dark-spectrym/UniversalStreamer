@@ -1,0 +1,100 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  baseline-tests:
+    name: Baseline unit tests (JVM)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      # The :baseline module is pure JVM; SKIP_APP=1 configures the build without
+      # the Android plugin so this job needs no SDK.
+      - name: Run baseline tests
+        env:
+          SKIP_APP: "1"
+        run: ./gradlew :baseline:test --stacktrace
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-test-report
+          path: baseline/build/reports/tests/test
+          if-no-files-found: ignore
+
+  alpha-apk:
+    name: Assemble alpha APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # Avoid the obsolete legacy "tools" package (removed from the SDK repo;
+          # setup-android@v3 tries it by default and fails). Install exactly what
+          # AGP 8.7 / compileSdk 35 need so no license prompt blocks assembly.
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Optional release signing: provide these repo secrets to produce a
+      # trusted-client build signed with the app's real key. Without them the
+      # build falls back to the debug keystore (installable, but the backend's
+      # trusted-client hash check expects the official signing certificate).
+      - name: Configure release signing (if secrets present)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            cat > keystore.properties <<EOF
+          storeFile=$RUNNER_TEMP/release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+            echo "Release signing configured from secrets."
+          else
+            echo "No KEYSTORE_BASE64 secret; assembleRelease will fall back to the debug keystore."
+          fi
+
+      - name: Lint (release)
+        run: ./gradlew :app:lintRelease --stacktrace
+      - name: Assemble release APK
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Upload alpha APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiostreamer-alpha-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-lint-report
+          path: app/build/reports/lint-results-release.*
+          if-no-files-found: ignore
