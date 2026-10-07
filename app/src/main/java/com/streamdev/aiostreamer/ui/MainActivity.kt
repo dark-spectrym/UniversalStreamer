@@ -5,6 +5,10 @@ import android.view.Gravity
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
 import com.streamdev.aiostreamer.BuildConfig
 import com.streamdev.aiostreamer.app.StreamerApp
@@ -25,13 +29,26 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Edge-to-edge is enforced when targeting Android 15 (API 35); draw behind
+        // the system bars and inset content so it is not clipped on any device.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         val output = TextView(this).apply {
             textSize = 16f
             setPadding(48, 64, 48, 64)
             gravity = Gravity.START
             text = "AIO Streamer ${BuildConfig.VERSION_NAME}\nRevived baseline\n\nContacting backend…"
         }
-        setContentView(ScrollView(this).apply { addView(output) })
+        val root = ScrollView(this).apply { addView(output) }
+        setContentView(root)
+
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+            )
+            view.updatePadding(left = bars.left, top = bars.top, right = bars.right, bottom = bars.bottom)
+            insets
+        }
 
         val repository = (application as StreamerApp).graph.repository
         lifecycleScope.launch {

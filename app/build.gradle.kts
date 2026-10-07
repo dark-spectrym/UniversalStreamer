@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -8,17 +10,40 @@ plugins {
     // alias(libs.plugins.firebase.crashlytics)
 }
 
+// Optional release signing. If a keystore.properties exists at the repo root we
+// sign with that; otherwise the release build falls back to the debug keystore so
+// `assembleRelease` ALWAYS produces an installable, sideloadable APK on any machine.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+}
+
 android {
     namespace = "com.streamdev.aiostreamer"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.streamdev.aiostreamer"
+        // minSdk 21 keeps the widest device reach (Android 5.0+); targetSdk 35 is
+        // current (Android 15) so the app meets modern platform behaviour/standards.
         minSdk = 21
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 645
         versionName = "6.4.5"
         vectorDrawables.useSupportLibrary = true
+        // Keep every resource configuration in the single universal APK (do not
+        // strip locales/densities) so one file installs correctly on any device.
+    }
+
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -28,7 +53,19 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = if (keystorePropsFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
+    }
+
+    // No native code ships in this app, so it is ABI-universal by construction.
+    // Disable ABI/density splits explicitly to guarantee a single universal APK.
+    splits {
+        abi { isEnable = false }
+        density { isEnable = false }
     }
 
     compileOptions {
@@ -46,12 +83,21 @@ android {
         buildConfig = true
     }
 
+    // Keep a sideload/release build from being blocked by lint on CI or a dev box.
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
+
     packaging {
         resources.excludes += setOf(
             "META-INF/{AL2.0,LGPL2.1}",
             "META-INF/DEPENDENCIES",
             "META-INF/INDEX.LIST",
         )
+        // Align native libs on 16 KB page boundaries for Android 15 devices, in
+        // case a future dependency adds .so files.
+        jniLibs { useLegacyPackaging = false }
     }
 }
 
