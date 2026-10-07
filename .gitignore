@@ -1,0 +1,19 @@
+.gradle/
+build/
+*/build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Keep the committed template; ignore a real Firebase config if one is dropped in.
+app/google-services.json
+!app/google-services.json.template
+
+# Keystores / signing
+*.jks
+*.keystore
+keystore.properties

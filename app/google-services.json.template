@@ -1,0 +1,25 @@
+{
+  "_comment": "Firebase config template. Replace placeholders with values from the Firebase console (project new-app-1876b per the original build), rename to google-services.json, and uncomment the google-services + crashlytics plugins in app/build.gradle.kts. Do NOT commit the real file (it is gitignored).",
+  "project_info": {
+    "project_number": "PLACEHOLDER_SENDER_ID",
+    "project_id": "PLACEHOLDER_PROJECT_ID",
+    "storage_bucket": "PLACEHOLDER_PROJECT_ID.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "PLACEHOLDER_APP_ID",
+        "android_client_info": {
+          "package_name": "com.streamdev.aiostreamer"
+        }
+      },
+      "api_key": [
+        { "current_key": "PLACEHOLDER_API_KEY" }
+      ],
+      "services": {
+        "appinvite_service": { "other_platform_oauth_client": [] }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
