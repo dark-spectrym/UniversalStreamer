@@ -1,7 +1,11 @@
 package com.streamdev.aiostreamer.baseline.sites
 
 import com.streamdev.aiostreamer.baseline.ApiService
+import com.streamdev.aiostreamer.baseline.model.Filters
 import com.streamdev.aiostreamer.baseline.model.SiteData
+import com.streamdev.aiostreamer.baseline.model.SiteInfoRequest
+import com.streamdev.aiostreamer.baseline.model.SiteInformation
+import com.streamdev.aiostreamer.baseline.model.StandardFilter
 import com.streamdev.aiostreamer.baseline.model.StreamData
 import com.streamdev.aiostreamer.baseline.model.TagData
 import com.streamdev.aiostreamer.baseline.model.TagResult
@@ -36,6 +40,59 @@ class SiteContentResolver(
         val links: List<VideoLink>,
         val headers: VideoHeaders,
     )
+
+    /**
+     * One call for a site listing: ask the backend for the site's scraping recipe
+     * (`getSiteInfo`, which bakes the requested page/viewer into the returned URLs),
+     * pick the URL for the current viewer, fetch it, and have the backend parse it.
+     * This is the exact sequence the v6.7.1 content screen uses (getInfo → fetch →
+     * getData).
+     */
+    suspend fun openListing(
+        siteTag: String,
+        filter: StandardFilter,
+        globalSearch: Boolean = false,
+        pornTabs: Boolean = false,
+        isTv: Boolean = false,
+        agent: SiteConnectionClient.Agent = SiteConnectionClient.Agent.DESKTOP,
+        ageGate: Boolean = true,
+    ): List<VideoInformation> {
+        val info = api.getSiteInfo(SiteInfoRequest(siteTag, filter, globalSearch, pornTabs), siteTag)
+        val url = selectListingUrl(info, filter) ?: return emptyList()
+        return listing(siteTag, url, isTv, agent, ageGate)
+    }
+
+    /** Picks the page URL the backend returned for the active viewer/ordering. */
+    fun selectListingUrl(info: SiteInformation, filter: StandardFilter): String? {
+        val chosen = when (filter.viewer) {
+            Filters.VIEWER_HOT -> info.hotUrl?.ifBlank { null } ?: info.newUrl
+            Filters.VIEWER_MOST_VIEWED -> info.mvUrl?.ifBlank { null } ?: info.newUrl
+            else -> info.newUrl // new/alpha/old/longest/random are server-side orderings of the "new" URL
+        }
+        return chosen?.ifBlank { null }
+    }
+
+    /**
+     * Resolves a chosen listing item to playable streams: builds the [VideoObject]
+     * from the [VideoInformation] and runs the fetch → getStream → videoheaders flow.
+     */
+    suspend fun resolvePlayable(
+        siteTag: String,
+        video: VideoInformation,
+        isTv: Boolean = false,
+        agent: SiteConnectionClient.Agent = SiteConnectionClient.Agent.DESKTOP,
+        ageGate: Boolean = true,
+    ): ResolvedStream {
+        val vo = VideoObject(
+            sourceLink = video.link,
+            hosterLink = video.link,
+            title = video.title,
+            image = video.img,
+            site = video.site ?: siteTag,
+            videoId = video.videoId,
+        )
+        return stream(siteTag, video.link.orEmpty(), vo, isTv, agent, ageGate)
+    }
 
     /** Loads a listing page: fetch its HTML, then have the backend parse it. */
     suspend fun listing(

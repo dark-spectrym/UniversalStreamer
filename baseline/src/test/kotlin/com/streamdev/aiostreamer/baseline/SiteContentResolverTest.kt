@@ -63,6 +63,28 @@ class SiteContentResolverTest {
     }
 
     @Test
+    fun openListing_fetchesRecipeThenPageThenParses() = runBlocking {
+        // 1) getSiteInfo returns the recipe with the page-baked URL
+        val pageUrl = server.url("/new/2").toString()
+        server.enqueue(MockResponse().setBody("""{"newUrl":"$pageUrl","sitetag":"examplecom"}"""))
+        // 2) the direct site fetch of that URL -> HTML
+        server.enqueue(MockResponse().setBody("<html>PAGE2</html>"))
+        // 3) backend parse -> videos
+        server.enqueue(MockResponse().setBody("""[{"video_id":21,"title":"v2"}]"""))
+
+        val videos = resolver.openListing(
+            "examplecom",
+            com.streamdev.aiostreamer.baseline.model.Filters.standard(page = 2),
+        )
+
+        assertEquals(1, videos.size)
+        assertEquals(21, videos[0].videoId)
+        assertEquals("/api/v9/sites/examplecom/info", server.takeRequest().path) // getSiteInfo
+        server.takeRequest()                                                     // jsoup fetch of pageUrl
+        assertEquals("/api/v9/sites/examplecom/data?isTV=false", server.takeRequest().path)
+    }
+
+    @Test
     fun stream_resolvesLinksThenHeaders() = runBlocking {
         server.enqueue(MockResponse().setBody("<html>WATCH</html>"))                 // jsoup fetch
         server.enqueue(MockResponse().setBody("""[{"quality":"720p","stream":"https://cdn/x.m3u8","type":"hls"}]"""))

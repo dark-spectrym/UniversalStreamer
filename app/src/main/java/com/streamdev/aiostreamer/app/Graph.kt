@@ -36,4 +36,7 @@ class Graph(context: Context) {
 
     val siteConnectionClient: SiteConnectionClient =
         SiteConnectionClient(PrefsCookieProvider(prefs))
+
+    val siteContentResolver: com.streamdev.aiostreamer.baseline.sites.SiteContentResolver =
+        com.streamdev.aiostreamer.baseline.sites.SiteContentResolver(api, siteConnectionClient)
 }
