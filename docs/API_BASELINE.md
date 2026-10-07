@@ -62,10 +62,16 @@ became `sites/{sitetag}/{data|info|link|stream|related|tags|extra}`; `tokens` be
 - `RedgifsService` (`api.redgifs.com/v2/`): `auth/temporary` then an `@Url` gif fetch
   with the temporary bearer. No app auth.
 
-## 6. Direct site scraping
+## 6. Direct site scraping & resolution
 `SiteConnectionClient` centralises outbound site requests (UA, age-gate cookies,
 per-site stored cookies via `CookieProvider`, referrer/timeout/redirects). Returns
 raw body or a parsed jsoup `Document`.
+
+`SiteContentResolver` composes the two-step flow the app uses for every listing
+and stream: fetch the page HTML on-device (IO dispatcher), POST it as the `payload`
+to `v9/sites/{tag}/{data|related|stream|tags}`, and (for streams) follow with
+`videoheaders`. `SwipeRepository` wraps the swipe feed and the RedGifs token→gif
+flow. `Filters` builds the standard/PornDB filters.
 
 ## 7. Secrets
 No secrets committed. `SERVER_PUBLIC_KEY` is a public key (verified: 550-byte DER

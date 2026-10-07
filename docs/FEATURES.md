@@ -26,7 +26,9 @@ Legend: ✅ reconstructed · 🟡 scaffolded/wired to baseline · ⬜ documented
 | Bearer-token auth, token persistence | scattered `@Header("Authorization")` + `SharedPref` | ✅ `baseline/net/AuthInterceptor`, `PrefsCredentialStore` |
 | SHA3-256 password hashing (password never sent in clear) | `datatypes/login/UserData.generateSHA` | ✅ `baseline/security/PasswordHasher` |
 | Direct site scraping (jsoup) with per-site UA / age-gate / premium cookies | `methods/GetDataRows`, `methods/GetStream` | ✅ baseline `sites/SiteConnectionClient` + `PrefsCookieProvider` |
-| Server-side stream resolution (`getStream`, `getRelatedVideos`) | `methods/GetStream` | 🟡 endpoint wired; per-site extraction ported incrementally |
+| Stream resolution orchestration (fetch page HTML → POST as payload → parse) | `jm1`/`ct5` data source, `methods/GetStream` | ✅ `baseline/sites/SiteContentResolver` (listing/related/stream/tags) |
+| Swipe feed + RedGifs runtime (token flow) | `tv/web`, swipe UI | ✅ `baseline/SwipeRepository` |
+| Filter/ordering construction | `helper/SetupFilters` | ✅ `baseline/model/Filters` (viewer new/hot/mv/alpha/old/longest/random, PornDB) |
 | High-level repository (coroutines + `Result`) replacing RxJava observers | n/a (new) | ✅ `baseline/StreamerRepository` |
 | Crash/scrape error reporting (`v9/error`, `v9/errors`) | `datatypes/errors/ClientError` | ✅ model + endpoint |
 
