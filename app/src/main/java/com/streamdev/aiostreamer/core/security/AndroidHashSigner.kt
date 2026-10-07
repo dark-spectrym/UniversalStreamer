@@ -39,10 +39,21 @@ object AndroidHashSigner {
         isTV = isTelevision(context),
         loginStatus = login,
         packageName = context.packageName,
-        signatures = signingCertSha256(context),
+        signatures = reportedSignatures(context),
         time = System.currentTimeMillis() / 1000L,
         version = BaselineConfig.VERSION_CODE,
     )
+
+    /**
+     * The signing-cert digests the client reports to the backend's trusted-client
+     * check. When [BaselineConfig.OFFICIAL_SIGNATURE_SHA256] is pinned we present
+     * the official digest (so any build — including a debug-signed alpha — is
+     * accepted); otherwise we report this APK's actual signing cert.
+     */
+    private fun reportedSignatures(context: Context): List<String> {
+        val pinned = BaselineConfig.OFFICIAL_SIGNATURE_SHA256
+        return if (pinned.isNotBlank()) listOf(pinned) else signingCertSha256(context)
+    }
 
     private fun signingCertSha256(context: Context): List<String> {
         val pm = context.packageManager

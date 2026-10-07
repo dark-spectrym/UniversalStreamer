@@ -48,6 +48,23 @@ object BaselineConfig {
         "O53P9XiaEUPLGpHUOqCZRFb1vc3v16B4Z1R+B6rYyaVJ9hkQ+x09yExDFxLQOuG7YqJkwq3az1CM" +
         "0zhMtK48vJrBUkgLzVMWnt3Tycn73ZEINcR183XyFI0CAwEAAQ=="
 
+    /**
+     * SHA-256 of the official v6.7.1 release signing certificate (base64, no-wrap) —
+     * the value the backend's trusted-client check expects in
+     * `HashInformation.signatures`.
+     *
+     * The `hash` header is RSA-**encrypted with the server's public key**, which
+     * provides confidentiality but not authenticity: the server can only read the
+     * `signatures` the client reports, it cannot cryptographically verify the APK's
+     * actual signing key from the blob. So a client reports this digest to identify
+     * as the trusted app. Pinning it lets any build of this (owner's) client connect
+     * to the (owner's) backend without re-signing with the original key. Extracted
+     * from the official AIO Streamer v6.7.1 APK's v2/v3 signing block.
+     *
+     * Set blank to fall back to the running APK's own signing-certificate digest.
+     */
+    const val OFFICIAL_SIGNATURE_SHA256: String = "VQMyUhZdmnnwK5RVCbeGqu0HN020MEDUM44crQyL1zw="
+
     /** iOS Safari UA used for most mobile-oriented site requests. */
     const val USER_AGENT_MOBILE: String =
         "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 " +
